@@ -1,0 +1,63 @@
+# Define the number of replicas, the threshold, the seed size, the view change timeout, the difficulty level, the nonce range, and the hash function
+NUM_REPLICAS = 50
+THRESHOLD = 10
+SEED_SIZE = 50
+VIEW_CHANGE_TIMEOUT = 2
+DIFFICULTY = 4 # initial difficulty level
+NONCE_RANGE = 2^32
+HASH_FUNCTION = SHA256
+
+# The execution protocol running at each non-faulty replica of service S = (C, R, F)
+execute_protocol():
+  # Collect the client requests in round ρ
+  requests = collect_requests()
+  # Order the requests by identifier i
+  ordered_requests = order_requests(requests)
+  # If this replica is the leader
+  if is_leader():
+    # Propose a value to the other replicas, consisting of the ordered requests and a PoW solution
+    value = create_value(ordered_requests)
+    # Send the value to all replicas
+    broadcast(value)
+  # Wait for a value from the leader
+  value = receive_value()
+  # Verify the value's PoW solution and consistency with the collected requests
+  if verify_value(value):
+    # Filter the requests based on the hash of the value
+    filtered_requests = filter_requests(value.get_requests())
+    # For each filtered request
+    for request in filtered_requests:
+      # Execute the request and get the result
+      result = execute_request(request)
+      # Send the result to the client
+      send_result(result, request.get_client())
+  else:
+    # Report the leader as faulty
+    report_faulty(value.get_leader())
+    # Initiate a view change protocol to elect a new leader based on a randomized or weighted algorithm
+    view_change(randomized_or_weighted())
+
+# The view change protocol running at each non-faulty replica of service S = (C, R, F)
+view_change(algorithm):
+  # Generate a random seed using Lagrange interpolation from the collected requests
+  seed = lagrange_interpolate(requests)
+  # If this replica is the new leader based on the algorithm and the seed
+  if is_new_leader(algorithm, seed):
+    # Send a new view message to the other replicas, consisting of the current state and a threshold signature
+    new_view = create_new_view(get_state())
+    # Send the new view message to all replicas
+    broadcast(new_view)
+  else:
+    # Wait for a new view message from the new leader
+    new_view = receive_new_view()
+    # Verify the new view message's threshold signature and consistency with the current state
+    if verify_new_view(new_view):
+      # Update the state based on the new view message
+      update_state(new_view.get_state())
+      # Resume the execution protocol
+      execute_protocol()
+    else:
+      # Report the new leader as faulty
+      report_faulty(new_view.get_leader())
+      # Initiate another view change protocol to elect another new leader based on the algorithm and the seed
+      view_change(algorithm, seed)
